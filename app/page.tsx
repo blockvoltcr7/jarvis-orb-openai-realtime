@@ -21,8 +21,41 @@ const ParticleOrbScene = dynamic(
     import("@/components/orb/ParticleOrbScene").then((m) => m.ParticleOrbScene),
   { ssr: false }
 );
+const PlasmaCoreScene = dynamic(
+  () =>
+    import("@/components/orb/PlasmaCoreScene").then((m) => m.PlasmaCoreScene),
+  { ssr: false }
+);
+const NeuralConstellationScene = dynamic(
+  () =>
+    import("@/components/orb/NeuralConstellationScene").then(
+      (m) => m.NeuralConstellationScene
+    ),
+  { ssr: false }
+);
+const ParticleFaceScene = dynamic(
+  () =>
+    import("@/components/orb/ParticleFaceScene").then(
+      (m) => m.ParticleFaceScene
+    ),
+  { ssr: false }
+);
 
-type OrbVariant = "classic" | "particle";
+type OrbVariant = "classic" | "particle" | "plasma" | "neural" | "face";
+const ORB_VARIANTS: OrbVariant[] = [
+  "classic",
+  "particle",
+  "plasma",
+  "neural",
+  "face",
+];
+const VARIANT_LABEL: Record<OrbVariant, string> = {
+  classic: "Classic",
+  particle: "Particle",
+  plasma: "Plasma",
+  neural: "Neural",
+  face: "Face",
+};
 
 export default function Page() {
   const {
@@ -48,10 +81,11 @@ export default function Page() {
   const [orbVariant, setOrbVariant] = useState<OrbVariant>("classic");
   useEffect(() => {
     const saved = localStorage.getItem("jarvis.orbVariant") as OrbVariant | null;
-    if (saved === "particle" || saved === "classic") setOrbVariant(saved);
+    if (saved && ORB_VARIANTS.includes(saved)) setOrbVariant(saved);
   }, []);
   const toggleOrbVariant = () => {
-    const next: OrbVariant = orbVariant === "classic" ? "particle" : "classic";
+    const idx = ORB_VARIANTS.indexOf(orbVariant);
+    const next = ORB_VARIANTS[(idx + 1) % ORB_VARIANTS.length];
     setOrbVariant(next);
     localStorage.setItem("jarvis.orbVariant", next);
   };
@@ -158,7 +192,25 @@ export default function Page() {
 
         <div className="order-1 lg:order-2 flex flex-col items-center justify-start gap-6">
           <div className="relative h-[420px] w-full max-w-[520px] md:h-[520px]">
-            {orbVariant === "particle" ? (
+            {orbVariant === "face" ? (
+              <ParticleFaceScene
+                audioLevelRef={audioLevelRef}
+                status={status}
+                personaColor={activePersona.color}
+              />
+            ) : orbVariant === "neural" ? (
+              <NeuralConstellationScene
+                audioLevelRef={audioLevelRef}
+                status={status}
+                personaColor={activePersona.color}
+              />
+            ) : orbVariant === "plasma" ? (
+              <PlasmaCoreScene
+                audioLevelRef={audioLevelRef}
+                status={status}
+                personaColor={activePersona.color}
+              />
+            ) : orbVariant === "particle" ? (
               <ParticleOrbScene
                 audioLevelRef={audioLevelRef}
                 status={status}
@@ -174,9 +226,9 @@ export default function Page() {
             <button
               onClick={toggleOrbVariant}
               className="absolute top-2 right-2 z-10 rounded-md border border-cyan-300/30 bg-black/40 px-2.5 py-1 text-[10px] uppercase tracking-[0.2em] text-cyan-100/80 backdrop-blur transition hover:border-cyan-300/60 hover:text-cyan-100"
-              title="Toggle orb style"
+              title="Cycle orb style"
             >
-              {orbVariant === "particle" ? "Particle" : "Classic"}
+              {VARIANT_LABEL[orbVariant]}
             </button>
           </div>
 
