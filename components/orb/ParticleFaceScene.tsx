@@ -1,6 +1,6 @@
 "use client";
 
-import { Canvas, useFrame, useThree } from "@react-three/fiber";
+import { Canvas, useFrame } from "@react-three/fiber";
 import { useGLTF } from "@react-three/drei";
 import { Suspense, useMemo, useRef } from "react";
 import * as THREE from "three";
@@ -65,8 +65,9 @@ function useHeadGeometry(): THREE.BufferGeometry | null {
 
     // Filter: keep only vertices ABOVE the neckline so the bust doesn't
     // create a messy splatted base. After centering+scaling, neck is
-    // roughly at y = -0.55. Drop everything below.
-    const NECK_Y = -0.55;
+    // roughly at y = -0.35. Drop everything below so the scene reads as
+    // a head/face instead of a bust with shoulder artifacts.
+    const NECK_Y = -0.35;
     const srcPos = sourceGeom.attributes.position.array as Float32Array;
     const srcNormal = sourceGeom.attributes.normal?.array as
       | Float32Array
@@ -114,7 +115,7 @@ function useHeadGeometry(): THREE.BufferGeometry | null {
     }
 
     // Lift slightly so the head sits visually centered after neck trim.
-    filtered.translate(0, 0.15, 0);
+    filtered.translate(0, 0.08, 0);
 
     return filtered;
   }, [gltf]);
@@ -133,6 +134,7 @@ function HeadAnimator({
   groupRef: React.MutableRefObject<THREE.Group | null>;
 }) {
   const targetRotation = useRef(new THREE.Vector2(0, 0));
+  const targetScale = useRef(new THREE.Vector3(1, 1, 1));
 
   useFrame((state) => {
     const g = groupRef.current;
@@ -160,9 +162,65 @@ function HeadAnimator({
     const breathe = 1 + Math.sin(t * 1.1) * 0.015;
     const speakingBoost = status === "speaking" ? 0.08 : 0;
     const target = breathe + level * 0.18 + speakingBoost;
-    g.scale.lerp(new THREE.Vector3(target, target, target), 0.12);
+    targetScale.current.setScalar(target);
+    g.scale.lerp(targetScale.current, 0.12);
   });
   return null;
+}
+
+function FaceAnchorCloud({
+  audioLevelRef,
+  geometry,
+  accent,
+  status,
+}: {
+  audioLevelRef: React.MutableRefObject<number>;
+  geometry: THREE.BufferGeometry;
+  accent: string;
+  status: VoiceStatus;
+}) {
+  const matRef = useRef<THREE.PointsMaterial>(null);
+
+  useFrame(() => {
+    const mat = matRef.current;
+    if (!mat) return;
+    const level = audioLevelRef.current;
+    mat.size =
+      status === "speaking" ? 0.015 + level * 0.018 : 0.011 + level * 0.01;
+    mat.opacity =
+      status === "thinking" ? 0.24 : status === "speaking" ? 0.3 : 0.17;
+  });
+
+  return (
+    <points geometry={geometry} renderOrder={-1}>
+      <pointsMaterial
+        ref={matRef}
+        size={0.011}
+        sizeAttenuation
+        color={accent}
+        transparent
+        opacity={0.17}
+        depthWrite={false}
+        blending={THREE.AdditiveBlending}
+      />
+    </points>
+  );
+}
+
+function FaceHalo({ accent }: { accent: string }) {
+  return (
+    <mesh scale={[1.2, 1.35, 0.95]} renderOrder={-2}>
+      <sphereGeometry args={[1, 48, 48]} />
+      <meshBasicMaterial
+        color={accent}
+        transparent
+        opacity={0.035}
+        depthWrite={false}
+        blending={THREE.AdditiveBlending}
+        side={THREE.BackSide}
+      />
+    </mesh>
+  );
 }
 
 function statusColors(
@@ -206,12 +264,19 @@ function HeadParticles({
   return (
     <>
       <group ref={groupRef}>
+        <FaceHalo accent={accent} />
+        <FaceAnchorCloud
+          audioLevelRef={audioLevelRef}
+          geometry={geometry}
+          accent={accent}
+          status={status}
+        />
         <FlowFieldParticles
           shape="disc"
-          size={0.32}
+          size={0.28}
           colors={colors}
           disturbIntensity={disturbIntensity}
-          repulsionForce={0.9}
+          repulsionForce={0.65}
           interactive
         >
           {/* The mesh is invisible (childMeshVisible defaults to false in

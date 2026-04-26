@@ -33,10 +33,10 @@ const NeuralConstellationScene = dynamic(
     ),
   { ssr: false }
 );
-const ParticleFaceScene = dynamic(
+const IrisCoreScene = dynamic(
   () =>
-    import("@/components/orb/ParticleFaceScene").then(
-      (m) => m.ParticleFaceScene
+    import("@/components/orb/IrisCoreScene").then(
+      (m) => m.IrisCoreScene
     ),
   { ssr: false }
 );
@@ -60,7 +60,7 @@ type OrbVariant =
   | "particle"
   | "plasma"
   | "neural"
-  | "face"
+  | "iris"
   | "aurora"
   | "crystal"
   | "wave";
@@ -69,7 +69,7 @@ const ORB_VARIANTS: OrbVariant[] = [
   "particle",
   "plasma",
   "neural",
-  "face",
+  "iris",
   "aurora",
   "crystal",
   "wave",
@@ -79,11 +79,15 @@ const VARIANT_LABEL: Record<OrbVariant, string> = {
   particle: "Particle",
   plasma: "Plasma",
   neural: "Neural",
-  face: "Face",
+  iris: "Iris",
   aurora: "Aurora",
   crystal: "Crystal",
   wave: "Wave",
 };
+
+function isOrbVariant(value: string): value is OrbVariant {
+  return ORB_VARIANTS.includes(value as OrbVariant);
+}
 
 export default function Page() {
   const {
@@ -108,8 +112,13 @@ export default function Page() {
   // Orb scene variant — persisted so refresh keeps your choice.
   const [orbVariant, setOrbVariant] = useState<OrbVariant>("classic");
   useEffect(() => {
-    const saved = localStorage.getItem("jarvis.orbVariant") as OrbVariant | null;
-    if (saved && ORB_VARIANTS.includes(saved)) setOrbVariant(saved);
+    const saved = localStorage.getItem("jarvis.orbVariant");
+    if (saved === "face") {
+      setOrbVariant("iris");
+      localStorage.setItem("jarvis.orbVariant", "iris");
+      return;
+    }
+    if (saved && isOrbVariant(saved)) setOrbVariant(saved);
   }, []);
   const toggleOrbVariant = () => {
     const idx = ORB_VARIANTS.indexOf(orbVariant);
@@ -233,8 +242,8 @@ export default function Page() {
                   return <PlasmaCoreScene {...props} />;
                 case "neural":
                   return <NeuralConstellationScene {...props} />;
-                case "face":
-                  return <ParticleFaceScene {...props} />;
+                case "iris":
+                  return <IrisCoreScene {...props} />;
                 case "aurora":
                   return <AuroraScene {...props} />;
                 case "crystal":

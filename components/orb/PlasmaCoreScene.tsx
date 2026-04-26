@@ -11,9 +11,9 @@ interface PlasmaCoreSceneProps {
   personaColor?: string;
 }
 
-const ARC_COUNT = 14;
-const ARC_SEGMENTS = 28; // points per arc polyline
-const HALO_PARTICLES = 800;
+const ARC_COUNT = 12;
+const ARC_SEGMENTS = 24; // points per arc polyline
+const HALO_PARTICLES = 650;
 
 // ────────────────────────────────────────────────────────────────────────────
 // Inner core: molten plasma shader (fresnel + animated noise)
@@ -70,14 +70,14 @@ void main() {
   float boil = mix(n1, n2, 0.5);
 
   // Core glow shape: bright in middle, fading toward rim, modulated by boil.
-  float core = (1.0 - fres) * (0.55 + 0.45 * boil) * uIntensity;
-  vec3 col = mix(uColorEdge * fres * (0.6 + boil * 0.6), uColorHot, core);
+  float core = clamp((1.0 - fres) * (0.5 + 0.42 * boil) * uIntensity, 0.0, 1.0);
+  vec3 col = mix(uColorEdge * (0.24 + fres * (0.78 + boil * 0.35)), uColorHot, core * 0.72);
 
   // Inner highlight pop
-  col += uColorHot * pow(core, 3.0) * 0.6;
+  col += uColorHot * pow(core, 3.0) * 0.22;
 
   // Slight transparency on rim for layering with halo behind.
-  float alpha = 0.85 + fres * 0.15;
+  float alpha = 0.62 + fres * 0.24;
   gl_FragColor = vec4(col, alpha);
 }
 `;
@@ -219,7 +219,7 @@ function statusPalette(accent: string, status: VoiceStatus) {
       coreHot: "#fffbeb",
       coreEdge: accent,
       arcRate: 1.8,
-      coreIntensity: 1.25,
+      coreIntensity: 0.95,
     };
   }
   if (status === "error") {
@@ -229,7 +229,7 @@ function statusPalette(accent: string, status: VoiceStatus) {
       coreHot: "#fff7ed",
       coreEdge: "#7f1d1d",
       arcRate: 2.2,
-      coreIntensity: 1.15,
+      coreIntensity: 0.9,
     };
   }
   return {
@@ -238,7 +238,7 @@ function statusPalette(accent: string, status: VoiceStatus) {
     coreHot: "#fef3c7",
     coreEdge: accent,
     arcRate: 1.0,
-    coreIntensity: 0.9,
+    coreIntensity: 0.68,
   };
 }
 
@@ -263,7 +263,7 @@ function PlasmaCore({
     const t = state.clock.elapsedTime;
     matRef.current.uniforms.uTime.value = t;
     matRef.current.uniforms.uIntensity.value =
-      palette.coreIntensity + audioLevelRef.current * 0.6;
+      palette.coreIntensity + audioLevelRef.current * 0.35;
     colorHotRef.set(palette.coreHot);
     colorEdgeRef.set(palette.coreEdge);
     matRef.current.uniforms.uColorHot.value = colorHotRef;
@@ -277,7 +277,7 @@ function PlasmaCore({
 
   return (
     <mesh ref={meshRef}>
-      <sphereGeometry args={[0.7, 64, 64]} />
+      <sphereGeometry args={[0.7, 48, 48]} />
       <shaderMaterial
         ref={matRef}
         vertexShader={CORE_VERT}
@@ -290,7 +290,7 @@ function PlasmaCore({
         }}
         transparent
         depthWrite={false}
-        blending={THREE.AdditiveBlending}
+        blending={THREE.NormalBlending}
       />
     </mesh>
   );
@@ -509,7 +509,7 @@ function ParticleHalo({
       positions[i * 3 + 0] = Math.cos(theta) * sr * r;
       positions[i * 3 + 1] = u * r;
       positions[i * 3 + 2] = Math.sin(theta) * sr * r;
-      sizes[i] = 0.4 + Math.random() * 0.9;
+      sizes[i] = 0.08 + Math.random() * 0.24;
       phases[i] = Math.random() * Math.PI * 2;
     }
     const geom = new THREE.BufferGeometry();
@@ -561,6 +561,7 @@ function CoreContainer({
 }) {
   const groupRef = useRef<THREE.Group>(null);
   const palette = statusPalette(accent, status);
+  const targetScale = useRef(new THREE.Vector3(1, 1, 1));
 
   useFrame((state) => {
     const g = groupRef.current;
@@ -570,7 +571,8 @@ function CoreContainer({
     // Audio-reactive breathing scale on the whole orb.
     const breathe = 1 + Math.sin(t * 1.0) * 0.02;
     const target = breathe + level * 0.12;
-    g.scale.lerp(new THREE.Vector3(target, target, target), 0.1);
+    targetScale.current.setScalar(target);
+    g.scale.lerp(targetScale.current, 0.1);
 
     // Subtle parallax tilt — orb leans toward the cursor.
     g.rotation.x = THREE.MathUtils.lerp(
@@ -593,7 +595,68 @@ function CoreContainer({
         palette={palette}
         coreRadius={0.7}
       />
+      <ContainmentRings audioLevelRef={audioLevelRef} palette={palette} />
       <ParticleHalo audioLevelRef={audioLevelRef} palette={palette} />
+    </group>
+  );
+}
+
+function ContainmentRings({
+  audioLevelRef,
+  palette,
+}: {
+  audioLevelRef: React.MutableRefObject<number>;
+  palette: ReturnType<typeof statusPalette>;
+}) {
+  const groupRef = useRef<THREE.Group>(null);
+
+  useFrame((state) => {
+    const g = groupRef.current;
+    if (!g) return;
+    const level = audioLevelRef.current;
+    g.rotation.z += 0.002;
+    g.rotation.y += 0.001;
+    g.scale.setScalar(1 + level * 0.04);
+    g.children.forEach((child, index) => {
+      const mesh = child as THREE.Mesh;
+      const material = mesh.material as THREE.MeshBasicMaterial;
+      material.color.set(index === 1 ? palette.bolt : palette.glow);
+      material.opacity = (index === 1 ? 0.22 : 0.12) + level * 0.06;
+    });
+  });
+
+  return (
+    <group ref={groupRef}>
+      <mesh rotation={[Math.PI * 0.5, 0.15, 0]}>
+        <torusGeometry args={[0.98, 0.009, 8, 160]} />
+        <meshBasicMaterial
+          color={palette.glow}
+          transparent
+          opacity={0.12}
+          depthWrite={false}
+          blending={THREE.AdditiveBlending}
+        />
+      </mesh>
+      <mesh rotation={[0.9, 0.55, 0.4]}>
+        <torusGeometry args={[1.12, 0.007, 8, 160]} />
+        <meshBasicMaterial
+          color={palette.bolt}
+          transparent
+          opacity={0.22}
+          depthWrite={false}
+          blending={THREE.AdditiveBlending}
+        />
+      </mesh>
+      <mesh rotation={[0.3, Math.PI * 0.5, -0.25]}>
+        <torusGeometry args={[1.26, 0.006, 8, 160]} />
+        <meshBasicMaterial
+          color={palette.glow}
+          transparent
+          opacity={0.1}
+          depthWrite={false}
+          blending={THREE.AdditiveBlending}
+        />
+      </mesh>
     </group>
   );
 }

@@ -11,6 +11,9 @@ interface HoloCrystalSceneProps {
   personaColor?: string;
 }
 
+const CRYSTAL_TUBULAR_SEGMENTS = 320;
+const CRYSTAL_RADIAL_SEGMENTS = 20;
+
 // ────────────────────────────────────────────────────────────────────────────
 // Holographic crystal: a TorusKnotGeometry traced in iridescent particles
 // with a faint wireframe overlay. Slowly rotates + cursor parallax.
@@ -30,8 +33,8 @@ void main() {
   vec4 mvPosition = modelViewMatrix * vec4(p, 1.0);
   gl_Position = projectionMatrix * mvPosition;
   // Per-vertex size flicker — like circuit-trace points blinking.
-  float blink = 0.7 + 0.3 * sin(uTime * 2.5 + aFlow * 60.0);
-  gl_PointSize = uSize * uPixelRatio * blink * (260.0 / -mvPosition.z);
+  float blink = 0.72 + 0.28 * sin(uTime * 2.5 + aFlow * 60.0);
+  gl_PointSize = uSize * uPixelRatio * blink * (220.0 / -mvPosition.z);
   vFlow = aFlow;
   vPosition = p;
 }
@@ -62,8 +65,8 @@ void main() {
     col = mix(uColorC, uColorA, (band - 0.66) * 3.0);
   }
 
-  float alpha = core * 0.95;
-  gl_FragColor = vec4(col * (0.55 + core * 0.7), alpha);
+  float alpha = core * 0.46;
+  gl_FragColor = vec4(col * (0.36 + core * 0.62), alpha);
 }
 `;
 
@@ -121,20 +124,30 @@ function Crystal({
   const { gl } = useThree();
   const pixelRatio = Math.min(gl.getPixelRatio(), 2);
   const palette = statusPalette(accent, status);
+  const baseRotation = useRef(new THREE.Vector2(0.35, -0.2));
+  const targetScale = useRef(new THREE.Vector3(1, 1, 1));
 
   // Build TorusKnotGeometry, extract its vertices for our particle cloud.
   const built = useMemo(() => {
     // (radius, tube, tubularSegments, radialSegments, p, q)
     // Higher tubular = denser particle ring along the knot's length.
-    const knot = new THREE.TorusKnotGeometry(1.0, 0.32, 360, 24, 2, 3);
+    const knot = new THREE.TorusKnotGeometry(
+      1.0,
+      0.3,
+      CRYSTAL_TUBULAR_SEGMENTS,
+      CRYSTAL_RADIAL_SEGMENTS,
+      2,
+      3
+    );
     const positions = (knot.attributes.position as THREE.BufferAttribute).array
       .slice() as Float32Array;
     const count = positions.length / 3;
     // aFlow = how far along the knot this vertex sits (0..1 sweep).
-    // Tubular index varies fastest in TorusKnotGeometry's vertex order.
+    // Radial vertices vary fastest in TorusKnotGeometry's vertex order.
     const flow = new Float32Array(count);
     for (let i = 0; i < count; i++) {
-      flow[i] = (i % 360) / 360;
+      const tubularIndex = Math.floor(i / (CRYSTAL_RADIAL_SEGMENTS + 1));
+      flow[i] = Math.min(1, tubularIndex / CRYSTAL_TUBULAR_SEGMENTS);
     }
     const pointGeom = new THREE.BufferGeometry();
     pointGeom.setAttribute(
@@ -169,23 +182,43 @@ function Crystal({
 
     const g = groupRef.current;
     if (g) {
-      // Constant rotation around two axes, gives the knot perpetual motion.
-      g.rotation.x += 0.003 * palette.rotateSpeed;
-      g.rotation.y += 0.005 * palette.rotateSpeed;
-      // Cursor parallax overlay — looks like the crystal banks toward you.
-      const parallaxX = state.pointer.y * -0.25;
-      const parallaxY = state.pointer.x * 0.25;
-      g.rotation.x = THREE.MathUtils.lerp(g.rotation.x, g.rotation.x + parallaxX, 0.02);
-      g.rotation.y = THREE.MathUtils.lerp(g.rotation.y, g.rotation.y + parallaxY, 0.02);
+      baseRotation.current.x += 0.003 * palette.rotateSpeed;
+      baseRotation.current.y += 0.005 * palette.rotateSpeed;
+      const targetX = baseRotation.current.x + state.pointer.y * -0.18;
+      const targetY = baseRotation.current.y + state.pointer.x * 0.18;
+      g.rotation.x = THREE.MathUtils.lerp(g.rotation.x, targetX, 0.045);
+      g.rotation.y = THREE.MathUtils.lerp(g.rotation.y, targetY, 0.045);
 
       // Audio-reactive scale.
       const target = 1 + audio * 0.08 + Math.sin(t * 0.9) * 0.01;
-      g.scale.lerp(new THREE.Vector3(target, target, target), 0.1);
+      targetScale.current.setScalar(target);
+      g.scale.lerp(targetScale.current, 0.1);
     }
   });
 
   return (
     <group ref={groupRef}>
+      <mesh scale={1.05} renderOrder={-2}>
+        <icosahedronGeometry args={[1.35, 2]} />
+        <meshBasicMaterial
+          color={palette.c}
+          wireframe
+          transparent
+          opacity={palette.wireOpacity * 0.55}
+          depthWrite={false}
+          blending={THREE.AdditiveBlending}
+        />
+      </mesh>
+      <mesh scale={0.82} renderOrder={-3}>
+        <icosahedronGeometry args={[1.35, 1]} />
+        <meshBasicMaterial
+          color={palette.a}
+          transparent
+          opacity={0.02}
+          depthWrite={false}
+          blending={THREE.AdditiveBlending}
+        />
+      </mesh>
       <lineSegments ref={wireRef} geometry={built.wireGeom}>
         <lineBasicMaterial
           ref={wireMatRef}
@@ -205,7 +238,7 @@ function Crystal({
             uColorB: { value: new THREE.Color(palette.b) },
             uColorC: { value: new THREE.Color(palette.c) },
             uPixelRatio: { value: pixelRatio },
-            uSize: { value: 0.6 },
+            uSize: { value: 0.18 },
             uTime: { value: 0 },
             uAudioLevel: { value: 0 },
           }}

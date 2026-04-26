@@ -11,8 +11,9 @@ interface AuroraSceneProps {
   personaColor?: string;
 }
 
-const PARTICLE_COUNT = 2200;
+const PARTICLE_COUNT = 1600;
 const SPHERE_RADIUS = 1.6;
+const CURTAIN_COUNT = 5;
 
 // ────────────────────────────────────────────────────────────────────────────
 // Curl noise — produces a divergence-free 3D vector field. Particles
@@ -102,6 +103,7 @@ function curl3(
 const VERT = /*glsl*/ `
 uniform float uPixelRatio;
 uniform float uSize;
+uniform float uAudioLevel;
 attribute float aLife;        // 0..1, fades at edges
 attribute float aHue;         // 0..1 for color band selection
 varying float vLife;
@@ -109,7 +111,8 @@ varying float vHue;
 void main() {
   vec4 mvPosition = modelViewMatrix * vec4(position, 1.0);
   gl_Position = projectionMatrix * mvPosition;
-  gl_PointSize = uSize * uPixelRatio * (180.0 / -mvPosition.z) * (0.4 + aLife * 0.7);
+  float audioBloom = 1.0 + uAudioLevel * 0.32;
+  gl_PointSize = uSize * uPixelRatio * audioBloom * (170.0 / -mvPosition.z) * (0.35 + aLife * 0.62);
   vLife = aLife;
   vHue = aHue;
 }
@@ -124,7 +127,7 @@ varying float vHue;
 void main() {
   vec2 uv = gl_PointCoord - 0.5;
   float d = length(uv);
-  float core = smoothstep(0.5, 0.0, d);
+  float core = smoothstep(0.48, 0.0, d);
   if (core < 0.01) discard;
   // 3-stop gradient across particles by aHue (random per particle).
   vec3 color;
@@ -133,8 +136,8 @@ void main() {
   } else {
     color = mix(uColorB, uColorC, (vHue - 0.5) * 2.0);
   }
-  float alpha = core * vLife * 0.85;
-  gl_FragColor = vec4(color * (0.6 + core * 0.7), alpha);
+  float alpha = core * vLife * 0.34;
+  gl_FragColor = vec4(color * (0.32 + core * 0.68), alpha);
 }
 `;
 
@@ -196,16 +199,22 @@ function Aurora({
     const lives = new Float32Array(PARTICLE_COUNT);
     const hues = new Float32Array(PARTICLE_COUNT);
     for (let i = 0; i < PARTICLE_COUNT; i++) {
-      // Random point inside sphere.
-      const u = Math.random() * 2 - 1;
+      // Seed particles into latitude curtains instead of a uniform fog.
+      const band = i % CURTAIN_COUNT;
+      const bandT = band / (CURTAIN_COUNT - 1);
+      const u = THREE.MathUtils.clamp(
+        -0.72 + bandT * 1.44 + (Math.random() - 0.5) * 0.22,
+        -0.92,
+        0.92
+      );
       const theta = Math.random() * Math.PI * 2;
-      const r = Math.cbrt(Math.random()) * SPHERE_RADIUS;
+      const r = SPHERE_RADIUS * (0.66 + Math.random() * 0.26);
       const sr = Math.sqrt(1 - u * u);
       positions[i * 3] = Math.cos(theta) * sr * r;
       positions[i * 3 + 1] = u * r;
       positions[i * 3 + 2] = Math.sin(theta) * sr * r;
       lives[i] = Math.random();
-      hues[i] = Math.random();
+      hues[i] = bandT * 0.78 + Math.random() * 0.22;
     }
     const geom = new THREE.BufferGeometry();
     geom.setAttribute(
@@ -217,10 +226,9 @@ function Aurora({
       new THREE.BufferAttribute(lives, 1).setUsage(THREE.DynamicDrawUsage)
     );
     geom.setAttribute("aHue", new THREE.BufferAttribute(hues, 1));
-    return { geom, positions, velocities, lives };
+    return { geom, positions, velocities, lives, hues };
   }, []);
 
-  const tmpCurl = useMemo(() => new THREE.Vector3(), []);
   const cursorRef = useRef(new THREE.Vector3());
 
   useFrame((state) => {
@@ -234,7 +242,7 @@ function Aurora({
       0
     );
 
-    const { positions, velocities, lives } = built;
+    const { positions, velocities, lives, hues } = built;
     const dt = 0.016; // fixed step for stable feel
 
     for (let i = 0; i < PARTICLE_COUNT; i++) {
@@ -243,9 +251,14 @@ function Aurora({
       const py = positions[ix + 1];
       const pz = positions[ix + 2];
 
-      // Sample curl-noise field at particle position. Scale input so the
-      // field has a "swirl size" comparable to the sphere radius.
-      curl3(tmpCurl, px * 0.7, py * 0.7, pz * 0.7, t * flowSpeed);
+      const band = hues[i];
+      const wave =
+        Math.sin(px * 1.8 + t * 0.65 + band * 6.28) * 0.34 +
+        Math.cos(pz * 1.3 - t * 0.45 + band * 4.1) * 0.2;
+      const targetY = (band - 0.5) * 1.65 + wave;
+      const fieldX = -pz * 0.52 + Math.sin(py * 2.2 + t * 0.7) * 0.28;
+      const fieldY = (targetY - py) * 0.42;
+      const fieldZ = px * 0.52 + Math.cos(py * 2.0 - t * 0.55) * 0.28;
 
       // Cursor swirl: particles within radius get a tangential push around
       // the cursor — adds an extra vortex when the mouse is near.
@@ -254,17 +267,19 @@ function Aurora({
       const dz = cursorRef.current.z - pz;
       const cdist = Math.sqrt(dx * dx + dy * dy + dz * dz);
       const swirlRadius = 1.0;
+      let pushX = fieldX;
+      let pushY = fieldY;
+      let pushZ = fieldZ;
       if (cdist < swirlRadius && cdist > 0.001) {
         const k = (1 - cdist / swirlRadius) * 0.8;
-        // Tangent in the XY plane.
-        tmpCurl.x += -dy * k;
-        tmpCurl.y += dx * k;
+        pushX += -dy * k;
+        pushY += dx * k;
       }
 
       const speed = 0.35 * flowSpeed;
-      velocities[ix] = THREE.MathUtils.lerp(velocities[ix], tmpCurl.x * speed, 0.25);
-      velocities[ix + 1] = THREE.MathUtils.lerp(velocities[ix + 1], tmpCurl.y * speed, 0.25);
-      velocities[ix + 2] = THREE.MathUtils.lerp(velocities[ix + 2], tmpCurl.z * speed, 0.25);
+      velocities[ix] = THREE.MathUtils.lerp(velocities[ix], pushX * speed, 0.22);
+      velocities[ix + 1] = THREE.MathUtils.lerp(velocities[ix + 1], pushY * speed, 0.22);
+      velocities[ix + 2] = THREE.MathUtils.lerp(velocities[ix + 2], pushZ * speed, 0.22);
 
       let nx = px + velocities[ix] * dt;
       let ny = py + velocities[ix + 1] * dt;
@@ -301,9 +316,15 @@ function Aurora({
     matRef.current.uniforms.uColorA.value.set(palette.a);
     matRef.current.uniforms.uColorB.value.set(palette.b);
     matRef.current.uniforms.uColorC.value.set(palette.c);
+    matRef.current.uniforms.uAudioLevel.value = audio;
 
     if (pointsRef.current) {
       pointsRef.current.rotation.y += 0.0005;
+      pointsRef.current.rotation.x = THREE.MathUtils.lerp(
+        pointsRef.current.rotation.x,
+        state.pointer.y * -0.08,
+        0.035
+      );
     }
   });
 
@@ -318,7 +339,8 @@ function Aurora({
           uColorB: { value: new THREE.Color(palette.b) },
           uColorC: { value: new THREE.Color(palette.c) },
           uPixelRatio: { value: pixelRatio },
-          uSize: { value: 1.0 },
+          uSize: { value: 0.42 },
+          uAudioLevel: { value: 0 },
         }}
         transparent
         depthWrite={false}
