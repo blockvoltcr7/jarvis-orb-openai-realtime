@@ -40,14 +40,39 @@ const ParticleFaceScene = dynamic(
     ),
   { ssr: false }
 );
+const AuroraScene = dynamic(
+  () => import("@/components/orb/AuroraScene").then((m) => m.AuroraScene),
+  { ssr: false }
+);
+const HoloCrystalScene = dynamic(
+  () =>
+    import("@/components/orb/HoloCrystalScene").then((m) => m.HoloCrystalScene),
+  { ssr: false }
+);
+const WaveSphereScene = dynamic(
+  () =>
+    import("@/components/orb/WaveSphereScene").then((m) => m.WaveSphereScene),
+  { ssr: false }
+);
 
-type OrbVariant = "classic" | "particle" | "plasma" | "neural" | "face";
+type OrbVariant =
+  | "classic"
+  | "particle"
+  | "plasma"
+  | "neural"
+  | "face"
+  | "aurora"
+  | "crystal"
+  | "wave";
 const ORB_VARIANTS: OrbVariant[] = [
   "classic",
   "particle",
   "plasma",
   "neural",
   "face",
+  "aurora",
+  "crystal",
+  "wave",
 ];
 const VARIANT_LABEL: Record<OrbVariant, string> = {
   classic: "Classic",
@@ -55,6 +80,9 @@ const VARIANT_LABEL: Record<OrbVariant, string> = {
   plasma: "Plasma",
   neural: "Neural",
   face: "Face",
+  aurora: "Aurora",
+  crystal: "Crystal",
+  wave: "Wave",
 };
 
 export default function Page() {
@@ -192,37 +220,32 @@ export default function Page() {
 
         <div className="order-1 lg:order-2 flex flex-col items-center justify-start gap-6">
           <div className="relative h-[420px] w-full max-w-[520px] md:h-[520px]">
-            {orbVariant === "face" ? (
-              <ParticleFaceScene
-                audioLevelRef={audioLevelRef}
-                status={status}
-                personaColor={activePersona.color}
-              />
-            ) : orbVariant === "neural" ? (
-              <NeuralConstellationScene
-                audioLevelRef={audioLevelRef}
-                status={status}
-                personaColor={activePersona.color}
-              />
-            ) : orbVariant === "plasma" ? (
-              <PlasmaCoreScene
-                audioLevelRef={audioLevelRef}
-                status={status}
-                personaColor={activePersona.color}
-              />
-            ) : orbVariant === "particle" ? (
-              <ParticleOrbScene
-                audioLevelRef={audioLevelRef}
-                status={status}
-                personaColor={activePersona.color}
-              />
-            ) : (
-              <OrbScene
-                audioLevelRef={audioLevelRef}
-                status={status}
-                personaColor={activePersona.color}
-              />
-            )}
+            {(() => {
+              const props = {
+                audioLevelRef,
+                status,
+                personaColor: activePersona.color,
+              };
+              switch (orbVariant) {
+                case "particle":
+                  return <ParticleOrbScene {...props} />;
+                case "plasma":
+                  return <PlasmaCoreScene {...props} />;
+                case "neural":
+                  return <NeuralConstellationScene {...props} />;
+                case "face":
+                  return <ParticleFaceScene {...props} />;
+                case "aurora":
+                  return <AuroraScene {...props} />;
+                case "crystal":
+                  return <HoloCrystalScene {...props} />;
+                case "wave":
+                  return <WaveSphereScene {...props} />;
+                case "classic":
+                default:
+                  return <OrbScene {...props} />;
+              }
+            })()}
             <button
               onClick={toggleOrbVariant}
               className="absolute top-2 right-2 z-10 rounded-md border border-cyan-300/30 bg-black/40 px-2.5 py-1 text-[10px] uppercase tracking-[0.2em] text-cyan-100/80 backdrop-blur transition hover:border-cyan-300/60 hover:text-cyan-100"
