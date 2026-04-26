@@ -16,6 +16,13 @@ const OrbScene = dynamic(
   () => import("@/components/orb/OrbScene").then((m) => m.OrbScene),
   { ssr: false }
 );
+const ParticleOrbScene = dynamic(
+  () =>
+    import("@/components/orb/ParticleOrbScene").then((m) => m.ParticleOrbScene),
+  { ssr: false }
+);
+
+type OrbVariant = "classic" | "particle";
 
 export default function Page() {
   const {
@@ -36,6 +43,18 @@ export default function Page() {
     const saved = localStorage.getItem("jarvis.defaultPersona");
     if (saved) setDefaultPersonaId(saved);
   }, []);
+
+  // Orb scene variant — persisted so refresh keeps your choice.
+  const [orbVariant, setOrbVariant] = useState<OrbVariant>("classic");
+  useEffect(() => {
+    const saved = localStorage.getItem("jarvis.orbVariant") as OrbVariant | null;
+    if (saved === "particle" || saved === "classic") setOrbVariant(saved);
+  }, []);
+  const toggleOrbVariant = () => {
+    const next: OrbVariant = orbVariant === "classic" ? "particle" : "classic";
+    setOrbVariant(next);
+    localStorage.setItem("jarvis.orbVariant", next);
+  };
 
   // Active persona = active session's persona (if a session is selected),
   // else the default. This is the source of truth for voice + orb color.
@@ -139,11 +158,26 @@ export default function Page() {
 
         <div className="order-1 lg:order-2 flex flex-col items-center justify-start gap-6">
           <div className="relative h-[420px] w-full max-w-[520px] md:h-[520px]">
-            <OrbScene
-              audioLevelRef={audioLevelRef}
-              status={status}
-              personaColor={activePersona.color}
-            />
+            {orbVariant === "particle" ? (
+              <ParticleOrbScene
+                audioLevelRef={audioLevelRef}
+                status={status}
+                personaColor={activePersona.color}
+              />
+            ) : (
+              <OrbScene
+                audioLevelRef={audioLevelRef}
+                status={status}
+                personaColor={activePersona.color}
+              />
+            )}
+            <button
+              onClick={toggleOrbVariant}
+              className="absolute top-2 right-2 z-10 rounded-md border border-cyan-300/30 bg-black/40 px-2.5 py-1 text-[10px] uppercase tracking-[0.2em] text-cyan-100/80 backdrop-blur transition hover:border-cyan-300/60 hover:text-cyan-100"
+              title="Toggle orb style"
+            >
+              {orbVariant === "particle" ? "Particle" : "Classic"}
+            </button>
           </div>
 
           <div className="flex flex-col items-center gap-3">
