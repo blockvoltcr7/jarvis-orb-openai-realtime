@@ -16,6 +16,78 @@ const OrbScene = dynamic(
   () => import("@/components/orb/OrbScene").then((m) => m.OrbScene),
   { ssr: false }
 );
+const ParticleOrbScene = dynamic(
+  () =>
+    import("@/components/orb/ParticleOrbScene").then((m) => m.ParticleOrbScene),
+  { ssr: false }
+);
+const PlasmaCoreScene = dynamic(
+  () =>
+    import("@/components/orb/PlasmaCoreScene").then((m) => m.PlasmaCoreScene),
+  { ssr: false }
+);
+const NeuralConstellationScene = dynamic(
+  () =>
+    import("@/components/orb/NeuralConstellationScene").then(
+      (m) => m.NeuralConstellationScene
+    ),
+  { ssr: false }
+);
+const IrisCoreScene = dynamic(
+  () =>
+    import("@/components/orb/IrisCoreScene").then(
+      (m) => m.IrisCoreScene
+    ),
+  { ssr: false }
+);
+const AuroraScene = dynamic(
+  () => import("@/components/orb/AuroraScene").then((m) => m.AuroraScene),
+  { ssr: false }
+);
+const HoloCrystalScene = dynamic(
+  () =>
+    import("@/components/orb/HoloCrystalScene").then((m) => m.HoloCrystalScene),
+  { ssr: false }
+);
+const WaveSphereScene = dynamic(
+  () =>
+    import("@/components/orb/WaveSphereScene").then((m) => m.WaveSphereScene),
+  { ssr: false }
+);
+
+type OrbVariant =
+  | "classic"
+  | "particle"
+  | "plasma"
+  | "neural"
+  | "iris"
+  | "aurora"
+  | "crystal"
+  | "wave";
+const ORB_VARIANTS: OrbVariant[] = [
+  "classic",
+  "particle",
+  "plasma",
+  "neural",
+  "iris",
+  "aurora",
+  "crystal",
+  "wave",
+];
+const VARIANT_LABEL: Record<OrbVariant, string> = {
+  classic: "Classic",
+  particle: "Particle",
+  plasma: "Plasma",
+  neural: "Neural",
+  iris: "Iris",
+  aurora: "Aurora",
+  crystal: "Crystal",
+  wave: "Wave",
+};
+
+function isOrbVariant(value: string): value is OrbVariant {
+  return ORB_VARIANTS.includes(value as OrbVariant);
+}
 
 export default function Page() {
   const {
@@ -36,6 +108,24 @@ export default function Page() {
     const saved = localStorage.getItem("jarvis.defaultPersona");
     if (saved) setDefaultPersonaId(saved);
   }, []);
+
+  // Orb scene variant — persisted so refresh keeps your choice.
+  const [orbVariant, setOrbVariant] = useState<OrbVariant>("classic");
+  useEffect(() => {
+    const saved = localStorage.getItem("jarvis.orbVariant");
+    if (saved === "face") {
+      setOrbVariant("iris");
+      localStorage.setItem("jarvis.orbVariant", "iris");
+      return;
+    }
+    if (saved && isOrbVariant(saved)) setOrbVariant(saved);
+  }, []);
+  const toggleOrbVariant = () => {
+    const idx = ORB_VARIANTS.indexOf(orbVariant);
+    const next = ORB_VARIANTS[(idx + 1) % ORB_VARIANTS.length];
+    setOrbVariant(next);
+    localStorage.setItem("jarvis.orbVariant", next);
+  };
 
   // Active persona = active session's persona (if a session is selected),
   // else the default. This is the source of truth for voice + orb color.
@@ -139,11 +229,39 @@ export default function Page() {
 
         <div className="order-1 lg:order-2 flex flex-col items-center justify-start gap-6">
           <div className="relative h-[420px] w-full max-w-[520px] md:h-[520px]">
-            <OrbScene
-              audioLevelRef={audioLevelRef}
-              status={status}
-              personaColor={activePersona.color}
-            />
+            {(() => {
+              const props = {
+                audioLevelRef,
+                status,
+                personaColor: activePersona.color,
+              };
+              switch (orbVariant) {
+                case "particle":
+                  return <ParticleOrbScene {...props} />;
+                case "plasma":
+                  return <PlasmaCoreScene {...props} />;
+                case "neural":
+                  return <NeuralConstellationScene {...props} />;
+                case "iris":
+                  return <IrisCoreScene {...props} />;
+                case "aurora":
+                  return <AuroraScene {...props} />;
+                case "crystal":
+                  return <HoloCrystalScene {...props} />;
+                case "wave":
+                  return <WaveSphereScene {...props} />;
+                case "classic":
+                default:
+                  return <OrbScene {...props} />;
+              }
+            })()}
+            <button
+              onClick={toggleOrbVariant}
+              className="absolute top-2 right-2 z-10 rounded-md border border-cyan-300/30 bg-black/40 px-2.5 py-1 text-[10px] uppercase tracking-[0.2em] text-cyan-100/80 backdrop-blur transition hover:border-cyan-300/60 hover:text-cyan-100"
+              title="Cycle orb style"
+            >
+              {VARIANT_LABEL[orbVariant]}
+            </button>
           </div>
 
           <div className="flex flex-col items-center gap-3">
