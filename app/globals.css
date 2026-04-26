@@ -1,0 +1,60 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --bg-deep: #03060f;
+  --bg-mid: #0a1024;
+  --accent: #22d3ee;
+  --accent-2: #a855f7;
+}
+
+html,
+body {
+  background: var(--bg-deep);
+  color: #e6f1ff;
+  min-height: 100vh;
+  -webkit-font-smoothing: antialiased;
+}
+
+body {
+  background:
+    radial-gradient(ellipse at 20% 10%, rgba(34, 211, 238, 0.08), transparent 60%),
+    radial-gradient(ellipse at 80% 90%, rgba(168, 85, 247, 0.08), transparent 60%),
+    radial-gradient(ellipse at 50% 50%, rgba(8, 14, 33, 1), #03060f 80%);
+  background-attachment: fixed;
+}
+
+.glass {
+  background: rgba(10, 16, 36, 0.55);
+  backdrop-filter: blur(14px) saturate(140%);
+  -webkit-backdrop-filter: blur(14px) saturate(140%);
+  border: 1px solid rgba(34, 211, 238, 0.12);
+}
+
+.text-glow {
+  text-shadow: 0 0 12px rgba(34, 211, 238, 0.6);
+}
+
+.btn-glow {
+  box-shadow:
+    0 0 0 1px rgba(34, 211, 238, 0.4),
+    0 0 24px rgba(34, 211, 238, 0.25),
+    inset 0 0 12px rgba(34, 211, 238, 0.15);
+}
+
+.scrollbar-thin::-webkit-scrollbar {
+  width: 6px;
+}
+.scrollbar-thin::-webkit-scrollbar-thumb {
+  background: rgba(34, 211, 238, 0.25);
+  border-radius: 3px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  * {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}
