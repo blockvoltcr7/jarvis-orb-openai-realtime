@@ -1,6 +1,6 @@
 # JARVIS Orb AI Assistant
 
-A futuristic, holographic AI orb voice assistant — a centered 3D glowing sphere that listens, thinks, calls tools, and speaks back. Powered by the **OpenAI Realtime API** over WebRTC.
+A futuristic, holographic AI orb voice assistant — a centered 3D presence that listens, thinks, calls tools, and speaks back. Powered by the **OpenAI Realtime API** over WebRTC.
 
 ## Tech Stack
 
@@ -68,11 +68,30 @@ To add a tool: add an entry to the `tools` array in `lib/voice/tools.ts`. It wil
 - **Calls** — live list of every tool call with status (running/success/error), args, result, and elapsed ms
 - **Registry** — every tool registered with the model, including its parameters
 
+### Orb Visual System
+
+The center canvas supports multiple persisted orb variants. Use the small variant button in the top-right corner of the orb area to cycle styles. The selected variant is saved in `localStorage` under `jarvis.orbVariant`.
+
+Current variants:
+
+- **Classic** — original glowing sphere with energy rings, particles, and hologram glow.
+- **Particle** — GPGPU flow-field particle sphere with cursor repulsion.
+- **Plasma** — contained plasma core with lightning arcs, corona particles, and containment rings.
+- **Neural** — floating node constellation with pulsing signal lines.
+- **Iris** — non-human aperture/lens core that replaced the old particle face variant.
+- **Aurora** — layered aurora curtain particles with audio bloom.
+- **Crystal** — iridescent torus-knot crystal with faceted lattice overlays.
+- **Wave** — audio-reactive harmonic wave sphere.
+
+Each scene receives the same props from `app/page.tsx`: `audioLevelRef`, `status`, and the active persona accent color. Status drives palette, motion intensity, and audio response.
+
 ## Important Files
 
 - `app/page.tsx` — main UI assembly (3-column layout: tools | orb | transcript)
 - `app/api/realtime-session/route.ts` — server-side ephemeral token mint
-- `components/orb/{OrbScene,AiOrb,EnergyRings,ParticleField,HologramGlow}.tsx`
+- `components/orb/OrbScene.tsx` — classic orb scene composition
+- `components/orb/{ParticleOrbScene,PlasmaCoreScene,NeuralConstellationScene,IrisCoreScene,AuroraScene,HoloCrystalScene,WaveSphereScene}.tsx` — alternate orb variants
+- `components/orb/{AiOrb,EnergyRings,ParticleField,HologramGlow,FlowFieldParticles}.tsx` — shared orb primitives and particle helpers
 - `components/assistant/{StatusBadge,TranscriptPanel,ToolsPanel,AssistantControls}.tsx`
 - `hooks/useVoiceAssistant.ts` — provider lifecycle, transcript + tool-call state
 - `lib/voice/openaiRealtimeProvider.ts` — WebRTC + Realtime data channel
